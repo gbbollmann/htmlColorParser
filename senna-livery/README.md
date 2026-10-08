@@ -11,5 +11,5 @@ overlay stickers.
 - `assets/` – the base car and body mask extracted from the original bundled customizer HTML.
 
 Livery notes: red (#E1251B) nose and rear with the forward-pointing chevron split, white door band,
-carbon-black roof and sills, Carta logo on the door (black) plus front fender and rear quarter (white),
+carbon-black roof and sills, Carta logo in black on the white door band,
 Senna's 1988 number 12 in red with a white keyline, and a Brazilian flag door sticker.
