@@ -13,6 +13,16 @@ const { resolve } = require('node:path');
   await page.evaluate(() => document.fonts.ready);
   const dataUrl = await page.evaluate(() => window.renderLivery());
   writeFileSync(outPath, Buffer.from(dataUrl.split(',')[1], 'base64'));
+  if (process.argv.includes('--transparent')) {
+    const tPath = outPath.replace(/\.png$/, '-transparent.png');
+    const t = await page.evaluate(() => window.renderLivery({ transparent: true }));
+    writeFileSync(tPath, Buffer.from(t.split(',')[1], 'base64'));
+    console.log('wrote', tPath);
+    const mPath = outPath.replace(/\.png$/, '-transparent-mirror.png');
+    const m = await page.evaluate(() => window.renderLivery({ transparent: true, mirrorText: true }));
+    writeFileSync(mPath, Buffer.from(m.split(',')[1], 'base64'));
+    console.log('wrote', mPath);
+  }
   await browser.close();
   console.log('wrote', outPath);
 })().catch((e) => { console.error(e); process.exit(1); });

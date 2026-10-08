@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carta Senna Showroom</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500&display=swap">
+<style>
+  /* Layout: full-bleed WebGL turntable, a quiet HUD pinned to the corners. Single dark showroom theme by choice. */
+  :root {
+    color-scheme: dark;
+    --bg: #16181a;
+    --bg-deep: #0c0d0e;
+    --fg: #f3f1ed;
+    --muted: #9ea4a9;
+    --accent: #e1251b;
+    --line: rgba(243, 241, 237, 0.16);
+    --panel: rgba(12, 13, 14, 0.72);
+    --font-display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+    --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); overflow: hidden; }
+  .app { position: relative; height: 100%; width: 100%; background: radial-gradient(120% 90% at 55% 60%, #34383b 0%, #1c1e20 50%, var(--bg-deep) 100%); }
+  canvas#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  canvas#gl.dragging { cursor: grabbing; }
+
+  .hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 20px 0; pointer-events: none; }
+  .brand { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .eyebrow { font: 500 12px/1 var(--font-body); letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 0; font: 700 clamp(30px, 6vw, 48px)/0.95 var(--font-display); letter-spacing: 0.01em; text-transform: uppercase; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .spec { margin: 4px 0 0; font: 400 13px/1.4 var(--font-body); color: var(--muted); max-width: 36ch; }
+  .plate { pointer-events: none; font: 700 clamp(44px, 9vw, 96px)/1 var(--font-display); color: transparent; -webkit-text-stroke: 1.5px var(--line); letter-spacing: 0.02em; user-select: none; }
+
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .views { display: flex; flex-wrap: wrap; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px; backdrop-filter: blur(8px); }
+  .views button { appearance: none; border: 1px solid transparent; background: transparent; color: var(--fg); font: 500 13px/1 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; padding: 9px 12px; border-radius: 4px; cursor: pointer; }
+  .views button:hover { background: rgba(243, 241, 237, 0.08); }
+  .views button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .views button[aria-pressed="true"] { background: var(--fg); color: var(--bg-deep); }
+  .hint { font: 400 12px/1.4 var(--font-body); color: var(--muted); letter-spacing: 0.02em; }
+
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; font: 500 13px/1 var(--font-body); letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); background: var(--bg); transition: opacity 0.4s; }
+  .loading[hidden] { display: none; }
+  @media (max-width: 560px) {
+    .plate { display: none; }
+    .dock { justify-content: center; }
+    .hint { width: 100%; text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce) { .loading { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <canvas id="gl" aria-label="3D model of the Carta Senna tribute stock car. Drag to rotate."></canvas>
+
+  <header class="hud">
+    <div class="brand">
+      <div class="eyebrow">Carta Design · Livery study</div>
+      <h1>Senna <em>tribute</em></h1>
+      <p class="spec">McLaren MP4/4 colours on a stock-car body. Number 12, Marlboro-era red, carbon roof and sills.</p>
+    </div>
+    <div class="plate" aria-hidden="true">12</div>
+  </header>
+
+  <div class="dock">
+    <nav class="views" aria-label="Camera views">
+      <button type="button" id="view-side" data-view="side" aria-pressed="true">Side</button>
+      <button type="button" id="view-front" data-view="front">Front ¾</button>
+      <button type="button" id="view-rear" data-view="rear">Rear ¾</button>
+      <button type="button" id="view-top" data-view="top">Top</button>
+      <button type="button" id="spin" aria-pressed="true">Auto-spin</button>
+    </nav>
+    <div class="hint">Drag to rotate · Scroll or pinch to zoom · Double-click to reset</div>
+  </div>
+
+  <div class="loading" id="loading">Building the model</div>
+</div>
+
+<script type="module">
+let THREE;
+try { THREE = await import('./vendor/three.module.min.js'); }
+catch (e) { THREE = await import('https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.module.min.js'); }
+
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 400);
+
+// ---------- Data ----------
+const data = await (await fetch('car-outline.json')).json();
+const [IMG_W, IMG_H] = data.size;
+const S = 1 / 100;                 // image px -> scene units (car is 28.28 units long)
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const CAR_W = IMG_W * S, CAR_H = IMG_H * S;
+const BODY_D = 10.4;               // body width across (1.95 m at 533 px/m)
+const GH_D = 8.3;                  // greenhouse is narrower than the shoulders
+const TIRE_W = 1.9;
+
+const loader = new THREE.TextureLoader();
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+const [bodyTex, wallTex, wheelImg] = await Promise.all([loader.loadAsync('body-texture.jpg'), loader.loadAsync('body-texture-walls.jpg'), loader.loadAsync('wheel.png')]);
+bodyTex.colorSpace = THREE.SRGBColorSpace; bodyTex.anisotropy = maxAniso;
+wallTex.colorSpace = THREE.SRGBColorSpace; wallTex.anisotropy = maxAniso;
+wheelImg.colorSpace = THREE.SRGBColorSpace; wheelImg.anisotropy = maxAniso;
+
+// ---------- Environment (studio softboxes baked to a PMREM) ----------
+{
+  const env = new THREE.Scene();
+  env.background = new THREE.Color(0x1c1f22);
+  const panel = (w, h, pos, rot, color) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.position.set(...pos); m.rotation.set(...rot); env.add(m);
+  };
+  panel(40, 8, [0, 14, 0], [Math.PI / 2, 0, 0], 0xffffff);          // long overhead strip
+  panel(30, 6, [0, 6, 18], [0, 0, 0], 0xcfd8e0);                       // front cool fill
+  panel(30, 6, [0, 6, -18], [0, Math.PI, 0], 0x8f9aa4);                // rear fill
+  panel(10, 10, [22, 5, 0], [0, -Math.PI / 2, 0], 0xffe9d6);           // warm side
+  panel(10, 10, [-22, 5, 0], [0, Math.PI / 2, 0], 0xd6e4ff);           // cool side
+  panel(60, 60, [0, -1, 0], [-Math.PI / 2, 0, 0], 0x0a0b0c);           // floor
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(env, 0).texture;
+  pmrem.dispose();
+}
+
+// ---------- Lights ----------
+scene.add(new THREE.HemisphereLight(0xe3e8ee, 0x14161a, 0.6));
+const key = new THREE.DirectionalLight(0xffffff, 2.4);
+key.position.set(14, 30, 16); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 90 });
+key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xdfe8ff, 0.9); rim.position.set(-18, 12, -22); scene.add(rim);
+
+// ---------- Floor ----------
+{
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(256, 256, 20, 256, 256, 256);
+  grad.addColorStop(0, '#3a3e42'); grad.addColorStop(0.55, '#202326'); grad.addColorStop(1, '#0c0d0e');
+  g.fillStyle = grad; g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(60, 96), new THREE.MeshStandardMaterial({ map: t, roughness: 0.92, metalness: 0 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+}
+
+// ---------- Body ----------
+const car = new THREE.Group();
+scene.add(car);
+
+const toShape = (poly) => {
+  const s = new THREE.Shape();
+  poly.forEach(([x, y], i) => { const X = x * S, Y = (IMG_H - y) * S; i ? s.lineTo(X, Y) : s.moveTo(X, Y); });
+  s.closePath();
+  return s;
+};
+
+// UVs are a projection of the side view: every surface takes the colour of the silhouette point it
+// extrudes from. The lid facing +z samples the top half of the texture, the -z lid the mirrored half.
+const DARK_UV = [12 / IMG_W, 1 - 12 / (IMG_H * 2)];
+const makeUVGen = (depth, bevelSize, wells) => {
+  const wellsR2 = (data.wellR + bevelSize / S + 8);
+  const isDark = (X, Y) => {
+    const px = X / S, py = IMG_H - Y / S;
+    if (py > 790) return true;
+    for (const w of wells) if ((px - w.x) ** 2 + (py - w.y) ** 2 <= wellsR2 * wellsR2) return true;
+    return false;
+  };
+  const INSET = 0.2;   // walls sample 20 px inside the outline, where the paint is clean
+  const side = (X, Y, nx, ny) => isDark(X, Y) ? new THREE.Vector2(...DARK_UV)
+    : new THREE.Vector2(clamp01((X + nx * INSET) / CAR_W), 0.5 + 0.5 * clamp01((Y + ny * INSET) / CAR_H));
+  const lid = (X, Y, Z) => new THREE.Vector2(X / CAR_W, (Z > depth / 2 ? 0.5 : 0) + 0.5 * (Y / CAR_H));
+  const v = (verts, i) => [verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2]];
+  return {
+    generateTopUV: (geo, verts, a, b, c) => [a, b, c].map(i => lid(...v(verts, i))),
+    generateSideWallUV: (geo, verts, a, b, c, d) => {
+      // ExtrudeGeometry walks the clockwise contour backwards for wall quads (b = a - 1), so the
+      // interior lies to the LEFT of a->b.
+      const [ax, ay] = v(verts, a), [bx, by] = v(verts, b);
+      let tx = bx - ax, ty = by - ay; const len = Math.hypot(tx, ty) || 1; tx /= len; ty /= len;
+      const nx = -ty, ny = tx;
+      return [a, b, c, d].map(i => { const [X, Y] = v(verts, i); return side(X, Y, nx, ny); });
+    },
+  };
+};
+
+const paint = new THREE.MeshPhysicalMaterial({
+  map: bodyTex, roughness: 0.42, metalness: 0.05, clearcoat: 0.9, clearcoatRoughness: 0.12, envMapIntensity: 1.1,
+});
+const paintWalls = paint.clone(); paintWalls.map = wallTex;
+
+const extrude = (poly, width, bevelSize, bevelThickness, wells) => {
+  const depth = width - 2 * bevelThickness;
+  const geo = new THREE.ExtrudeGeometry(toShape(poly), {
+    depth, steps: 1, bevelEnabled: true, bevelSize, bevelThickness, bevelOffset: -bevelSize, bevelSegments: 5,
+    UVGenerator: makeUVGen(depth, bevelSize, wells),
+  });
+  geo.translate(0, 0, -depth / 2);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, [paint, paintWalls]);   // extrude groups: 0 = lids, 1 = walls
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  return mesh;
+};
+
+const lower = extrude(data.lower, BODY_D, 0.32, 0.5, data.wheels);
+const greenhouse = extrude(data.greenhouse, GH_D, 0.55, 0.7, []);
+greenhouse.position.y = -0.45;   // sink the rounded bottom edge into the shoulders
+car.add(lower, greenhouse);
+
+// ---------- Wheels ----------
+{
+  const tread = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.95, metalness: 0 });
+  const inner = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
+  const face = new THREE.MeshStandardMaterial({ map: wheelImg, roughness: 0.55, metalness: 0.1 });
+  for (const w of data.wheels) {
+    const r = w.r * S;
+    const tyre = new THREE.CylinderGeometry(r, r, TIRE_W, 72, 1, true);
+    tyre.rotateX(Math.PI / 2);                     // axle along z
+    const disc = new THREE.CircleGeometry(r, 72);  // faces +z, uv = plain xy projection
+    for (const sideSign of [1, -1]) {
+      const g = new THREE.Group();
+      g.position.set(w.x * S, (IMG_H - w.y) * S, sideSign * (BODY_D / 2 - TIRE_W / 2 - 0.05));
+      const t = new THREE.Mesh(tyre, tread); t.castShadow = true; t.receiveShadow = true; g.add(t);
+      const outer = new THREE.Mesh(disc, face); outer.position.z = TIRE_W / 2;
+      const back = new THREE.Mesh(disc, inner); back.position.z = -TIRE_W / 2; back.rotation.y = Math.PI;
+      g.add(outer, back);
+      if (sideSign < 0) g.rotation.y = Math.PI;    // the far side shows the same readable face
+      car.add(g);
+    }
+  }
+}
+
+// Centre the car on the turntable: nose at -x, tyres on the floor.
+car.position.set(-CAR_W / 2, 0.01, 0);
+
+// ---------- Camera orbit (drag / inertia / zoom / presets) ----------
+const target = new THREE.Vector3(0, 2.4, 0);
+const orbit = { theta: Math.PI / 2, phi: 1.22, dist: 44 };
+const VIEWS = {
+  side:  { theta: Math.PI / 2, phi: 1.30, dist: 44 },
+  front: { theta: Math.PI / 2 + 0.95, phi: 1.12, dist: 42 },
+  rear:  { theta: Math.PI / 2 - 2.35, phi: 1.12, dist: 42 },
+  top:   { theta: Math.PI / 2 + 0.35, phi: 0.35, dist: 46 },
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const applyCamera = () => {
+  const { theta, phi, dist } = orbit;
+  camera.position.set(
+    target.x + dist * Math.sin(phi) * Math.cos(theta),
+    target.y + dist * Math.cos(phi),
+    target.z + dist * Math.sin(phi) * Math.sin(theta));
+  camera.lookAt(target);
+};
+
+let autoSpin = true, vel = 0, dragging = false, lastX = 0, lastY = 0, pinchDist = 0, tween = null;
+const pointers = new Map();
+const spinBtn = document.getElementById('spin');
+const setSpin = (on) => { autoSpin = on; spinBtn.setAttribute('aria-pressed', String(on)); };
+spinBtn.addEventListener('click', () => setSpin(!autoSpin));
+
+const markView = (name) => document.querySelectorAll('.views [data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === name)));
+const goTo = (name) => {
+  const to = VIEWS[name]; if (!to) return;
+  setSpin(false); markView(name); vel = 0;
+  const from = { ...orbit };
+  let dTheta = to.theta - from.theta; dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
+  const t0 = performance.now(), dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650;
+  tween = (now) => {
+    const k = dur ? clamp((now - t0) / dur, 0, 1) : 1, e = 1 - Math.pow(1 - k, 3);
+    orbit.theta = from.theta + dTheta * e; orbit.phi = from.phi + (to.phi - from.phi) * e; orbit.dist = from.dist + (to.dist - from.dist) * e;
+    if (k >= 1) tween = null;
+  };
+};
+document.querySelectorAll('.views [data-view]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.view)));
+
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pointers.size === 1) { dragging = true; lastX = e.clientX; lastY = e.clientY; vel = 0; tween = null; setSpin(false); markView(''); canvas.classList.add('dragging'); }
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchDist = Math.hypot(a[0] - b[0], a[1] - b[1]); }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinchDist) orbit.dist = clamp(orbit.dist * (pinchDist / d), 20, 90);
+    pinchDist = d; return;
+  }
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+  const k = 2 * Math.PI / Math.max(canvas.clientWidth, 1);
+  orbit.theta -= dx * k * 1.1; vel = -dx * k * 1.1;
+  orbit.phi = clamp(orbit.phi - dy * k * 0.9, 0.18, 1.45);
+});
+const endPointer = (e) => {
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0) { dragging = false; canvas.classList.remove('dragging'); }
+  pinchDist = 0;
+};
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0012), 20, 90); }, { passive: false });
+canvas.addEventListener('dblclick', () => { goTo('side'); setSpin(true); });
+
+// Exposed for scripted screenshots.
+window.__showroom = { orbit, goTo, setSpin, applyCamera, render: () => { applyCamera(); renderer.render(scene, camera); } };
+
+// ---------- Resize + loop ----------
+const resize = () => {
+  const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  camera.fov = w < 640 ? 38 : 30; camera.updateProjectionMatrix();
+};
+window.addEventListener('resize', resize); resize();
+
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reduced) setSpin(false);
+let last = performance.now();
+const loop = (now) => {
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  if (tween) tween(now);
+  else if (dragging) { /* direct control */ }
+  else if (Math.abs(vel) > 0.0004) { orbit.theta += vel; vel *= Math.pow(0.08, dt); }
+  else if (autoSpin) orbit.theta += 0.22 * dt;
+  applyCamera();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+};
+document.getElementById('loading').hidden = true;
+applyCamera(); renderer.render(scene, camera);
+window.__ready = true;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

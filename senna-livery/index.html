@@ -42,7 +42,7 @@
     <rect x="0" y="684" width="2828" height="8" fill="#E1251B"/>
 
     <!-- Carta logo, black on the white door panel -->
-    <g transform="translate(1105 284) scale(0.9) translate(-44.32 -46.99)">
+    <g data-logo="carta" transform="translate(1105 284) scale(0.9) translate(-44.32 -46.99)">
       <use href="#carta" fill="#1A1A1A"/>
     </g>
 
@@ -54,7 +54,7 @@
           fill="#E1251B" stroke="#FFFFFF" stroke-width="18" paint-order="stroke" stroke-linejoin="round">12</text>
 
     <!-- Driver wordmark on the red rear quarter -->
-    <text x="2330" y="292" text-anchor="middle"
+    <text x="2400" y="292" text-anchor="middle"
           font-family="'Inter Display', 'Inter', 'Arial Black', sans-serif" font-size="66" font-weight="900" font-style="italic" letter-spacing="8"
           fill="#FFFFFF">SENNA</text>
 
@@ -90,20 +90,33 @@
 
 <script>
 const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-const svgToImg = (el, w, h) => {
+const svgToImg = (el, w, h, mirrorText) => {
   const clone = el.cloneNode(true);
   clone.removeAttribute('style'); clone.removeAttribute('id');
+  if (mirrorText) {
+    // Mirror every text element and the logo group in place (about its own centre), so the
+    // far side of the 3D model shows the livery layout mirrored but the lettering readable.
+    clone.querySelectorAll('text').forEach(t => {
+      const x = parseFloat(t.getAttribute('x')) || 0;
+      t.setAttribute('transform', (t.getAttribute('transform') || '') + ` translate(${2 * x} 0) scale(-1 1)`);
+    });
+    clone.querySelectorAll('g[data-logo]').forEach(g => {
+      g.setAttribute('transform', (g.getAttribute('transform') || '') + ' translate(389.73 0) scale(-1 1)');
+    });
+  }
   clone.setAttribute('width', w); clone.setAttribute('height', h);
   return loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone)));
 };
 
 // Same composite as the customizer's exportPng(): background, floor shadow, base car,
 // livery multiplied through the body mask, then the overlay stickers.
-window.renderLivery = async function () {
+window.renderLivery = async function (opts) {
+  const transparent = !!(opts && opts.transparent);
+  const mirrorText = !!(opts && opts.mirrorText);
   const W = 2828, H = 808, PX = 120, PY = 140, CW = W + PX * 2, CH = H + PY * 2;
   const [base, bodyM, livery, overlay] = await Promise.all([
     loadImg('assets/car-base.png'), loadImg('assets/car-body-mask.png'),
-    svgToImg(document.getElementById('livery'), W, H), svgToImg(document.getElementById('overlay'), W, H),
+    svgToImg(document.getElementById('livery'), W, H, mirrorText), svgToImg(document.getElementById('overlay'), W, H, mirrorText),
   ]);
   const layer = (draw, mask) => {
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -111,6 +124,19 @@ window.renderLivery = async function () {
   };
   const out = document.getElementById('out'); out.width = CW; out.height = CH;
   const ctx = out.getContext('2d');
+  if (transparent) {
+    // Car only, no backdrop: used as the texture for the 3D model.
+    out.width = W; out.height = H;
+    const c2 = out.getContext('2d');
+    c2.drawImage(base, 0, 0, W, H);
+    c2.globalCompositeOperation = 'multiply';
+    c2.drawImage(layer(x => x.drawImage(livery, 0, 0), bodyM), 0, 0);
+    c2.globalCompositeOperation = 'destination-in';
+    c2.drawImage(base, 0, 0, W, H);
+    c2.globalCompositeOperation = 'source-over';
+    c2.drawImage(overlay, 0, 0);
+    return out.toDataURL('image/png');
+  }
   const g = ctx.createRadialGradient(CW * 0.6, CH * 0.55, 50, CW * 0.5, CH * 0.55, CW * 0.7);
   g.addColorStop(0, '#3a3e3e'); g.addColorStop(1, '#121313');
   ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
