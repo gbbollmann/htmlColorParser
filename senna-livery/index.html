@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Carta Senna Tribute Livery</title>
+<style>
+  body { margin: 0; background: #141515; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; font-family: Inter, sans-serif; color: #fff; }
+  .stage { position: relative; width: 100%; max-width: 1400px; aspect-ratio: 2828 / 808; }
+  .stage img, .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #livery { mix-blend-mode: multiply; -webkit-mask-image: url("assets/car-body-mask.png"); mask-image: url("assets/car-body-mask.png"); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+  #overlay { pointer-events: none; }
+  canvas { max-width: 100%; display: block; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <img id="base" src="assets/car-base.png" alt="">
+
+  <!-- Livery layer: multiplied through the body mask, exactly like the customizer's export -->
+  <svg id="livery" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2828 808" preserveAspectRatio="none">
+    <defs>
+      <!-- McLaren MP4/4 tribute palette -->
+      <path id="carta" d="M44.32,46.99v131.28h301.09V46.99H44.32z M337.41,170.27H52.32V54.99h285.09V170.27z M87.87,115.91c0-14.85,12.47-23.57,23.66-23.57c8.01,0,15.48,3.02,19.48,9.98l-7.48,4.36c-1.29-1.96-3.05-3.56-5.12-4.66c-2.07-1.1-4.38-1.67-6.73-1.65c-6.58,0-14.41,5.16-14.41,15.39c0,9.98,7.48,15.48,15.03,15.48c5.25,0,9.61-2.94,12.19-7.48l7.65,3.55c-4.33,7.83-12.07,12-21.05,12C99.79,139.3,87.87,130.57,87.87,115.91z M158.86,139.3c6.22,0,12.09-2.76,15.12-6.76v5.51h9.24V93.49h-9.24v5.52c-2.88-4.04-8.89-6.67-15.12-6.67c-13.61,0-23.13,9.96-23.130,23.48C135.73,129.07,145.34,139.3,158.86,139.3z M159.75,100.79c8.54,0,14.4,6.4,14.4,15.03c0,8.63-5.87,15.03-14.4,15.03c-8.72,0-14.59-6.49-14.59-15.21C145.16,107.11,151.21,100.79,159.75,100.79z M229.91,102.1h-7.11v-8.9h7.2V80.04h9.52v13.16h9.87v8.9h-9.87v35.93h-9.61V102.1z M275.73,139.3c6.23,0,12.1-2.76,15.13-6.76v5.51h9.25V93.49h-9.25v5.52c-2.88-4.04-8.89-6.67-15.13-6.67c-13.6,0-23.12,9.96-23.12,23.48C252.61,129.07,262.21,139.3,275.73,139.3z M276.63,100.79c8.53,0,14.41,6.4,14.41,15.03c0,8.63-5.88,15.03-14.41,15.03c-8.72,0-14.59-6.49-14.59-15.21C262.04,107.11,268.09,100.79,276.63,100.79z M202.36,137.99h-9.61V93.43h8.8v7.74c1.82-5.03,5.67-8.45,10.77-8.45c1.1-0.02,2.21,0.1,3.29,0.35v8.62c-7.18-0.84-13.25,4.18-13.25,15.66V137.99z"/>
+    </defs>
+
+    <!-- White base -->
+    <rect x="0" y="0" width="2828" height="808" fill="#FFFFFF"/>
+
+    <!-- Red nose / front fender block. The edge leans rearward as it drops, like the MP4/4 sidepod split -->
+    <polygon points="0,0 700,0 960,808 0,808" fill="#E1251B"/>
+
+    <!-- Red rear block with the forward-pointing chevron wedge -->
+    <polygon points="1800,0 2828,0 2828,808 2350,808 1520,420" fill="#E1251B"/>
+
+    <!-- Thin dark pinstripe tracing the chevron edge (gives the vinyl-cut feel from the Senna GTR) -->
+    <polyline points="1800,0 1520,420 2350,808" fill="none" stroke="#1A1A1A" stroke-width="7"/>
+    <polyline points="700,0 960,808" fill="none" stroke="#1A1A1A" stroke-width="7"/>
+
+    <!-- Carbon roof and lower sills -->
+    <rect x="1050" y="0" width="1150" height="92" fill="#262626"/>
+    <rect x="0" y="690" width="2828" height="118" fill="#262626"/>
+    <rect x="0" y="684" width="2828" height="8" fill="#E1251B"/>
+
+    <!-- Carta logo, black on the white door panel -->
+    <g transform="translate(1060 205) scale(1.3) translate(-44.32 -46.99)">
+      <use href="#carta" fill="#1A1A1A"/>
+    </g>
+
+    <!-- Carta logo, white on the red front fender -->
+    <g transform="translate(460 272) scale(0.5) translate(-44.32 -46.99)">
+      <use href="#carta" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Carta logo, white on the red rear quarter ahead of the rear wheel -->
+    <g transform="translate(1840 470) scale(0.55) translate(-44.32 -46.99)">
+      <use href="#carta" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Senna's 1988 race number, red with white keyline -->
+    <text x="1230" y="662" text-anchor="middle" transform="skewX(-8) translate(92 0)"
+          font-family="'Inter Display', 'Inter', 'Arial Black', sans-serif" font-size="330" font-weight="900"
+          fill="#E1251B" stroke="#FFFFFF" stroke-width="18" paint-order="stroke" stroke-linejoin="round">12</text>
+
+    <!-- Driver wordmark on the red rear quarter -->
+    <text x="2330" y="292" text-anchor="middle"
+          font-family="'Inter Display', 'Inter', 'Arial Black', sans-serif" font-size="66" font-weight="900" font-style="italic" letter-spacing="8"
+          fill="#FFFFFF">SENNA</text>
+
+    <!-- Team name on the carbon sill -->
+    <text x="1300" y="745" text-anchor="middle"
+          font-family="'Inter Display', 'Inter', 'Arial Black', sans-serif" font-size="42" font-weight="900" font-style="italic" letter-spacing="4"
+          fill="#FFFFFF">CARTA RACING</text>
+
+  </svg>
+
+  <!-- Overlay layer: stickers drawn on top, not multiplied -->
+  <svg id="overlay" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2828 808" preserveAspectRatio="none">
+    <defs>
+      <filter id="stickerCut" x="-30%" y="-30%" width="160%" height="160%">
+        <feMorphology in="SourceAlpha" operator="dilate" radius="5" result="d"/>
+        <feFlood flood-color="#FFFFFF"/>
+        <feComposite in2="d" operator="in" result="w"/>
+        <feDropShadow in="w" dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.35" result="ws"/>
+        <feMerge><feMergeNode in="ws"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <!-- Brazilian flag sticker, like the one on the Senna GTR door -->
+    <g transform="translate(1640 582)" filter="url(#stickerCut)">
+      <rect width="100" height="70" fill="#009C3B"/>
+      <polygon points="50,7 92,35 50,63 8,35" fill="#FFDF00"/>
+      <circle cx="50" cy="35" r="17" fill="#002776"/>
+      <path d="M34,33 Q50,25 66,37" stroke="#FFFFFF" stroke-width="3" fill="none"/>
+    </g>
+  </svg>
+</div>
+
+<canvas id="out" width="3068" height="1088"></canvas>
+
+<script>
+const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const svgToImg = (el, w, h) => {
+  const clone = el.cloneNode(true);
+  clone.removeAttribute('style'); clone.removeAttribute('id');
+  clone.setAttribute('width', w); clone.setAttribute('height', h);
+  return loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone)));
+};
+
+// Same composite as the customizer's exportPng(): background, floor shadow, base car,
+// livery multiplied through the body mask, then the overlay stickers.
+window.renderLivery = async function () {
+  const W = 2828, H = 808, PX = 120, PY = 140, CW = W + PX * 2, CH = H + PY * 2;
+  const [base, bodyM, livery, overlay] = await Promise.all([
+    loadImg('assets/car-base.png'), loadImg('assets/car-body-mask.png'),
+    svgToImg(document.getElementById('livery'), W, H), svgToImg(document.getElementById('overlay'), W, H),
+  ]);
+  const layer = (draw, mask) => {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const x = cv.getContext('2d'); draw(x); x.globalCompositeOperation = 'destination-in'; x.drawImage(mask, 0, 0, W, H); return cv;
+  };
+  const out = document.getElementById('out'); out.width = CW; out.height = CH;
+  const ctx = out.getContext('2d');
+  const g = ctx.createRadialGradient(CW * 0.6, CH * 0.55, 50, CW * 0.5, CH * 0.55, CW * 0.7);
+  g.addColorStop(0, '#3a3e3e'); g.addColorStop(1, '#121313');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
+  const sh = ctx.createRadialGradient(CW / 2, PY + H, 10, CW / 2, PY + H, W / 2);
+  sh.addColorStop(0, 'rgba(0,0,0,0.6)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save(); ctx.translate(0, PY + H); ctx.scale(1, 0.08); ctx.translate(0, -(PY + H)); ctx.fillStyle = sh; ctx.fillRect(0, 0, CW, CH * 2); ctx.restore();
+  ctx.drawImage(base, PX, PY, W, H);
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.drawImage(layer(x => x.drawImage(livery, 0, 0), bodyM), PX, PY);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(overlay, PX, PY);
+  return out.toDataURL('image/png');
+};
+</script>
+</body>
+</html>
